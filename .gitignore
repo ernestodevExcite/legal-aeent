@@ -1,0 +1,89 @@
+# ─── Secretos y configuración local ───────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Base de datos SQLite ──────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Datos (contratos, documentos procesados) ─────────────────────────────────
+data/raw/*
+data/processed/*
+# Mantener la estructura de carpetas
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# ─── Certificados SSL ─────────────────────────────────────────────────────────
+docker/certs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.eggs/
+
+# ─── Entornos virtuales ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.env/
+
+# ─── Pytest / cobertura ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# ─── Mypy / linters ───────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Docker (volúmenes locales, no los archivos de config) ────────────────────
+# Los volúmenes de Docker se gestionan por Docker, no por git
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Reportes generados ───────────────────────────────────────────────────────
+reports/*.xlsx
+reports/*.pdf
+reports/*.csv
