@@ -7,6 +7,7 @@ import streamlit as st
 import requests
 import os
 import pandas as pd
+import extra_streamlit_components as stx
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
@@ -18,6 +19,12 @@ st.set_page_config(
 )
 
 # ─── Sesión y autenticación ─────────────────────────────────────────────────
+
+#@st.cache_resource
+def get_cookie_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_cookie_manager()
 
 def api(method: str, path: str, **kwargs):
     headers = {}
@@ -44,12 +51,24 @@ def login_screen():
             data={"username": email, "password": password}
         )
         if r.status_code == 200:
-            st.session_state.token = r.json()["access_token"]
+            token = r.json()["access_token"]
+            st.session_state.token = token
             st.session_state.email = email
+            # Persistir en cookie (expira en 8 horas)
+            cookie_manager.set("auth_token", token, max_age=28800)
+            cookie_manager.set("auth_email", email, max_age=28800)
             st.rerun()
         else:
             st.error("Credenciales incorrectas")
 
+
+# Restaurar sesión desde cookie si no está en session_state
+if "token" not in st.session_state:
+    cookie_token = cookie_manager.get("auth_token")
+    cookie_email = cookie_manager.get("auth_email")
+    if cookie_token:
+        st.session_state.token = cookie_token
+        st.session_state.email = cookie_email or ""
 
 if "token" not in st.session_state:
     login_screen()
@@ -67,7 +86,10 @@ with st.sidebar:
         "🔔 Alertas",
     ])
     if st.button("Cerrar sesión"):
+        cookie_manager.delete("auth_token")
+        cookie_manager.delete("auth_email")
         del st.session_state["token"]
+        st.session_state.pop("email", None)
         st.rerun()
 
 # ─── Dashboard ──────────────────────────────────────────────────────────────

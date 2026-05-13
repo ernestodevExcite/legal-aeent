@@ -5,6 +5,7 @@ PDF, DOCX, OCR → texto limpio + metadatos
 
 import os
 import json
+import ollama
 import re
 from pathlib import Path
 from datetime import date
@@ -151,3 +152,31 @@ def extract_metadata_heuristic(text: str) -> dict:
             break
 
     return metadata
+
+def extract_metadata_with_llm(text_fragment: str) -> dict:
+    prompt = f"""
+    Analiza el siguiente extracto de contrato y extrae la información en formato JSON:
+    {{
+        "contract_type": "tipo de contrato, ejemplos: nda, de servicios, suministro, compra, colaboración, arrendamiento etc",
+        "counterparty": "nombre de la contraparte",
+        "signature_date": "Fecha de firma del contrato en formato YYYY-MM-DD",
+        "expiration_date": "Fecha de vencimiento del contrato en formato YYYY-MM-DD",
+        "amount": 0.0,
+        "currency": "ISO code",
+        "jurisdiction": "país"
+    }}
+    
+    Texto: {text_fragment[:5000]} # Enviamos los primeros 3000 caracteres
+    """
+    
+    try:
+        response = ollama.generate(
+            model="qwen2.5:7b",
+            prompt=prompt,
+            format="json", # Esto obliga a Qwen a responder solo JSON
+            stream=False
+        )
+        return json.loads(response['response'])
+    except Exception as e:
+        print(f"Error con LLM: {e}")
+        return extract_metadata_heuristic(text_fragment) # Fallback a tu función vieja

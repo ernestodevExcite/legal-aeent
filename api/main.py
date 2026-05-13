@@ -17,10 +17,10 @@ from services.scheduler import start_scheduler, stop_scheduler
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
-    start_scheduler()
+    #start_scheduler()
     yield
     # Shutdown
-    stop_scheduler()
+    #stop_scheduler()
 
 
 app = FastAPI(

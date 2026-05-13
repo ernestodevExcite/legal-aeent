@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 from config import settings
 from database import get_session
 from models import Contract, ActivityLog
-from services.document_processor import extract_text, chunk_text, extract_metadata_heuristic
+from services.document_processor import extract_text, chunk_text, extract_metadata_heuristic, extract_metadata_with_llm
 from services.rag_service import index_contract
 from services.llm_service import summarize_contract, analyze_clauses
 from routes.auth import get_current_user
@@ -64,7 +64,7 @@ async def upload_contract(
             raise HTTPException(422, "No se pudo extraer texto del documento")
 
         # Extraer metadatos heurísticos
-        metadata = extract_metadata_heuristic(text)
+        metadata = extract_metadata_with_llm(text)
 
         # Generar resumen y análisis de cláusulas
         summary = summarize_contract(text)
