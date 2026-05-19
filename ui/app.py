@@ -207,7 +207,7 @@ elif page == "📁 Cargar Contratos":
 
     uploaded_files = st.file_uploader(
         "Selecciona contratos",
-        type=["pdf", "docx", "doc"],
+        type=["pdf", "docx"],
         accept_multiple_files=True
     )
 
@@ -223,9 +223,9 @@ elif page == "📁 Cargar Contratos":
                     status.update(label=f"✅ {uploaded_file.name}", state="complete")
                     st.json({
                         "Contrato ID": data["contract_id"],
-                        "Chunks indexados": data["chunks_indexed"],
-                        "Tipo detectado": data["metadata"].get("contract_type", "N/A"),
-                        "Riesgo": data["clauses"].get("overall_risk", "N/A"),
+                        "status": data["status"],
+                        "filename": data["filename"],
+                        "message": data["message"],
                     })
                 else:
                     status.update(label=f"❌ Error en {uploaded_file.name}", state="error")

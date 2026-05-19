@@ -9,6 +9,7 @@ pytesseract==0.3.13
 Pillow==10.3.0
 pdf2image==1.17.0
 python-magic==0.4.27
+PyMuPDF==1.24.3
 
 # RAG / Embeddings
 qdrant-client==1.9.1

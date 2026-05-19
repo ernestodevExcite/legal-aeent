@@ -11,7 +11,8 @@ from pathlib import Path
 from datetime import date
 from typing import Optional
 
-import pdfplumber
+import fitz
+from concurrent.futures import ThreadPoolExecutor
 import pytesseract
 from pdf2image import convert_from_path
 from docx import Document
@@ -19,27 +20,42 @@ from PIL import Image
 
 from config import settings
 
+# Cliente apuntando al contenedor ollama, no a localhost
+_ollama = ollama.Client(host=settings.ollama_url)
+
+
+def process_image_ocr(img):
+    """Procesa una sola imagen con OCR."""
+    return pytesseract.image_to_string(img, lang="spa")
 
 def extract_text_from_pdf(filepath: str) -> str:
-    """Extrae texto de PDF. Si está escaneado, usa OCR."""
+    """Extrae texto de PDF. Usa OCR en paralelo si está escaneado."""
     text = ""
     try:
-        with pdfplumber.open(filepath) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-    except Exception:
-        pass
+        # Extraer con PyMuPDF (muy rápido)
+        doc = fitz.open(filepath)
+        for page in doc:
+            page_text = page.get_text()
+            if page_text:
+                text += page_text + "\n"
+        doc.close()
+    except Exception as e:
+        print(f"Error extrayendo texto nativo: {e}")
 
-    # Si no se extrajo texto suficiente, intentar OCR
+    # Si no se extrajo texto suficiente, intentar OCR en paralelo
     if len(text.strip()) < 100:
         try:
             images = convert_from_path(filepath, dpi=200)
-            for img in images:
-                text += pytesseract.image_to_string(img, lang="spa") + "\n"
-        except Exception:
-            pass
+            text_chunks = []
+            
+            # Usar hilos paralelos para acelerar el OCR
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                results = executor.map(process_image_ocr, images)
+                text_chunks = list(results)
+                
+            text = "\n".join(text_chunks)
+        except Exception as e:
+            print(f"Error en OCR: {e}")
 
     return text.strip()
 
@@ -154,29 +170,57 @@ def extract_metadata_heuristic(text: str) -> dict:
     return metadata
 
 def extract_metadata_with_llm(text_fragment: str) -> dict:
+    # prompt = f"""
+    # Analiza el siguiente extracto de contrato y extrae la información en formato JSON:
+    # {{
+    #     "contract_type": "tipo de contrato, ejemplos: nda, de servicios, suministro, compra, colaboración, arrendamiento etc",
+    #     "counterparty": "nombre de la contraparte",
+    #     "signature_date": "Fecha de firma del contrato en formato YYYY-MM-DD",
+    #     "expiration_date": "Fecha de vencimiento del contrato en formato YYYY-MM-DD",
+    #     "amount": 0.0,
+    #     "currency": "ISO code",
+    #     "jurisdiction": "país"
+    # }}
+    
+    # Texto: {text_fragment[:5000]} # Enviamos los primeros 3000 caracteres
+    # """
     prompt = f"""
-    Analiza el siguiente extracto de contrato y extrae la información en formato JSON:
+    Actúa como un abogado experto en derecho contractual. 
+    Tu tarea es extraer información clave de un contrato y devolverla en formato JSON.
+
+    Aquí están las reglas:
+    1. Analiza el texto y extrae solo la información que puedas validar con certeza.
+    2. Si un campo no está presente en el texto, déjalo como null.
+    3. No inventes datos. Si no encuentras un valor claro, usa null.
+    4. Para fechas usa el formato YYYY-MM-DD, si no hay fecha, déjalo como null. puede haber periodos como de (1 de enero) a (31 de diciembre de 2022).
+    5. Para montos numéricos elimina comas y símbolos de moneda.
+    6. Para el tipo de contrato sé específico (ej. “arrendamiento”, “compraventa”, “NDA”, “prestación de servicios”, “suministro”, “colaboración”, “arrendamiento”, “renta”, etc.).
+    7. No incluyas comentarios o explicaciones, solo el JSON.
+
+    Texto del contrato:
+    {text_fragment}
+
+    Devuelve únicamente un objeto JSON válido con estas claves:
     {{
-        "contract_type": "tipo de contrato, ejemplos: nda, de servicios, suministro, compra, colaboración, arrendamiento etc",
+        "contract_type": "tipo de contrato",
         "counterparty": "nombre de la contraparte",
-        "signature_date": "Fecha de firma del contrato en formato YYYY-MM-DD",
-        "expiration_date": "Fecha de vencimiento del contrato en formato YYYY-MM-DD",
+        "signature_date": "fecha en formato YYYY-MM-DD",
+        "expiration_date": "fecha en formato YYYY-MM-DD",
         "amount": 0.0,
         "currency": "ISO code",
         "jurisdiction": "país"
     }}
-    
-    Texto: {text_fragment[:5000]} # Enviamos los primeros 3000 caracteres
     """
     
     try:
-        response = ollama.generate(
-            model="qwen2.5:7b",
+        response = _ollama.generate(
+            model=settings.llm_model,
             prompt=prompt,
-            format="json", # Esto obliga a Qwen a responder solo JSON
+            format="json",
             stream=False
         )
         return json.loads(response['response'])
     except Exception as e:
-        print(f"Error con LLM: {e}")
-        return extract_metadata_heuristic(text_fragment) # Fallback a tu función vieja
+        import logging
+        logging.getLogger(__name__).warning(f"LLM failed, falling back to heuristic for: {e}")
+        return extract_metadata_heuristic(text_fragment)
