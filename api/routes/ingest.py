@@ -70,7 +70,7 @@ def process_contract_background(contract_id: int, filepath: str, filename: str, 
             risk_level = clauses_result.get("overall_risk", "unknown")
 
             # Actualizar contrato
-            contract.contract_type = metadata.get("contract_type")
+            contract.contract_type = metadata.get("contract_type").lower()
             contract.counterparty = metadata.get("counterparty")
             contract.jurisdiction = metadata.get("jurisdiction")
             contract.signature_date = parse_date(metadata.get("signature_date"))

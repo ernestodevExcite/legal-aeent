@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # LLM
     ollama_url: str = "http://ollama:11434"
-    llm_model: str = "qwen2.5:7b"
+    llm_model: str = "gemma4:e2b"
     embed_model: str = "nomic-embed-text"
 
     # Vector store

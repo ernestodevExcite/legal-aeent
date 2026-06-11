@@ -13,6 +13,11 @@ services:
       resources:
         limits:
           memory: 9G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 30s
