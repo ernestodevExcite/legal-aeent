@@ -8,6 +8,7 @@ import requests
 import os
 import pandas as pd
 import extra_streamlit_components as stx
+import base64
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
@@ -143,6 +144,118 @@ if page == "📊 Dashboard":
                 cols_exist = [c for c in cols if c in df_c.columns]
                 st.dataframe(df_c[cols_exist], use_container_width=True)
 
+                st.markdown("---")
+                st.subheader("🔍 Detalle y Visualización de Contrato")
+                contract_options = {
+                    f"#{c['id']} - {c['filename']} ({c.get('counterparty') or 'Sin contraparte'})": c 
+                    for c in contracts
+                }
+                selected_label = st.selectbox(
+                    "Selecciona un contrato para inspeccionar:",
+                    ["-- Seleccionar contrato --"] + list(contract_options.keys())
+                )
+
+                if selected_label != "-- Seleccionar contrato --":
+                    selected_contract = contract_options[selected_label]
+                    contract_id = selected_contract["id"]
+
+                    with st.spinner("Cargando análisis de contrato..."):
+                        r_det = api("get", f"/analyze/{contract_id}")
+
+                    if r_det and r_det.status_code == 200:
+                        det_data = r_det.json()
+                        metadata = det_data.get("metadata", {})
+                        summary = det_data.get("summary", "")
+                        clauses = det_data.get("clauses", {})
+
+                        tab_details, tab_viewer = st.tabs(["📋 Detalles y Cláusulas", "👁️ Visualizador de Documento"])
+
+                        with tab_details:
+                            col_a, col_b, col_c = st.columns(3)
+                            
+                            risk = det_data.get("risk_level", "unknown").upper()
+                            risk_colors = {"LOW": "🟢 Bajo", "MEDIUM": "🟡 Medio", "HIGH": "🔴 Alto", "UNKNOWN": "⚪ Desconocido"}
+                            risk_str = risk_colors.get(risk, f"⚪ {risk}")
+
+                            col_a.markdown(f"**Tipo de Contrato:** {metadata.get('contract_type', 'N/A')}")
+                            col_a.markdown(f"**Contraparte:** {metadata.get('counterparty', 'N/A')}")
+                            col_a.markdown(f"**Jurisdicción:** {metadata.get('jurisdiction', 'N/A')}")
+
+                            col_b.markdown(f"**Fecha Firma:** {metadata.get('signature_date', 'N/A')}")
+                            col_b.markdown(f"**Fecha Vencimiento:** {metadata.get('expiration_date', 'N/A')}")
+                            col_b.markdown(f"**Monto:** {metadata.get('amount', 'N/A')} {metadata.get('currency') or ''}")
+
+                            col_c.markdown(f"**Riesgo General:** {risk_str}")
+                            col_c.markdown(f"**Estado:** {selected_contract.get('status', 'N/A')}")
+                            col_c.markdown(f"**Tiene Firma:** {'Sí ✅' if selected_contract.get('has_signature') else 'No ❌'}")
+
+                            st.markdown("---")
+                            st.markdown("### 📝 Resumen Ejecutivo")
+                            if summary:
+                                st.write(summary)
+                            else:
+                                st.info("No hay un resumen disponible.")
+
+                            st.markdown("---")
+                            st.markdown("### 🔍 Análisis de Cláusulas Críticas")
+                            if clauses and "clauses" in clauses:
+                                for cl in clauses["clauses"]:
+                                    cl_name = cl.get("name", "Cláusula")
+                                    cl_status = cl.get("status", "desconocido").lower()
+                                    cl_obs = cl.get("observation", "")
+
+                                    status_emoji = {
+                                        "presente": "✅ Presente",
+                                        "incompleta": "⚠️ Incompleta",
+                                        "ausente": "❌ Ausente",
+                                        "riesgo": "🚨 Riesgo"
+                                    }.get(cl_status, f"⚪ {cl_status}")
+
+                                    with st.expander(f"{status_emoji} - **{cl_name}**"):
+                                        st.write(cl_obs)
+
+                                if "summary_observations" in clauses:
+                                    st.markdown("**Observaciones Generales de Cláusulas:**")
+                                    st.write(clauses["summary_observations"])
+                            else:
+                                st.info("No se encontraron análisis de cláusulas para este contrato.")
+
+                        with tab_viewer:
+                            st.markdown("### 👁️ Visualización de Archivo Original")
+                            
+                            r_dl = api("get", f"/ingest/{contract_id}/download")
+                            if r_dl and r_dl.status_code == 200:
+                                st.download_button(
+                                    label="📥 Descargar Archivo Original",
+                                    data=r_dl.content,
+                                    file_name=selected_contract["filename"],
+                                    mime="application/octet-stream",
+                                    key=f"dl_{contract_id}"
+                                )
+
+                                filename = selected_contract["filename"].lower()
+                                if filename.endswith(".pdf"):
+                                    try:
+                                        base64_pdf = base64.b64encode(r_dl.content).decode("utf-8")
+                                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="800" type="application/pdf"></iframe>'
+                                        st.markdown(pdf_display, unsafe_allow_html=True)
+                                    except Exception as e:
+                                        st.error(f"Error al renderizar el visor de PDF: {e}")
+                                elif filename.endswith(".docx") or filename.endswith(".doc"):
+                                    r_txt = api("get", f"/ingest/{contract_id}/text")
+                                    if r_txt and r_txt.status_code == 200:
+                                        full_text = r_txt.json().get("text", "")
+                                        st.markdown("#### Contenido de Texto Extraído (Word)")
+                                        st.text_area("Texto del contrato", full_text, height=600, disabled=True)
+                                    else:
+                                        st.warning("No se pudo obtener el texto extraído para previsualizar.")
+                                else:
+                                    st.info("Visualización no soportada para este formato de archivo.")
+                            else:
+                                st.error("No se pudo descargar el archivo para visualización.")
+                    else:
+                        st.error("No se pudo obtener la información de detalle del contrato.")
+
         # Exportar Excel
         if st.button("📥 Exportar Excel"):
             r3 = api("get", "/reports/excel")
@@ -192,7 +305,7 @@ elif page == "💬 Chat Legal":
                     answer = data["answer"]
                     sources = data.get("sources", [])
                     if sources:
-                        answer += f"\n\n---\n📄 *Documentos consultados: IDs {sources}*"
+                        answer += f"\n\n---\n📄 *Documentos consultados*"
                 else:
                     answer = "Error al consultar. Verifica que el sistema esté activo."
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime, date
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from config import settings
@@ -212,3 +213,45 @@ async def delete_contract(
     db.commit()
 
     return {"status": "ok", "deleted": contract_id}
+
+
+@router.get("/{contract_id}/download")
+async def download_contract(
+    contract_id: int,
+    db: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """Descarga el archivo del contrato."""
+    contract = db.get(Contract, contract_id)
+    if not contract:
+        raise HTTPException(404, "Contrato no encontrado")
+
+    if not os.path.exists(contract.original_path):
+        raise HTTPException(404, "Archivo físico no encontrado")
+
+    return FileResponse(
+        path=contract.original_path,
+        filename=contract.filename,
+        media_type="application/octet-stream"
+    )
+
+
+@router.get("/{contract_id}/text")
+async def get_contract_text(
+    contract_id: int,
+    db: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """Retorna el texto completo extraído del contrato."""
+    contract = db.get(Contract, contract_id)
+    if not contract:
+        raise HTTPException(404, "Contrato no encontrado")
+
+    if not os.path.exists(contract.original_path):
+        raise HTTPException(404, "Archivo físico no encontrado")
+
+    try:
+        text = extract_text(contract.original_path)
+        return {"text": text}
+    except Exception as e:
+        raise HTTPException(500, f"Error al extraer texto: {str(e)}")

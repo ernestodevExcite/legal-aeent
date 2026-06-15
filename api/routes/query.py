@@ -22,7 +22,7 @@ class QueryRequest(BaseModel):
     question: str
     contract_type: Optional[str] = None
     counterparty: Optional[str] = None
-    limit: int = 8
+    limit: int = 4
 
 
 class SearchRequest(BaseModel):
