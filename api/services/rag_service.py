@@ -9,7 +9,8 @@ from typing import Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct,
-    Filter, FieldCondition, MatchValue, Range
+    Filter, FieldCondition, MatchValue, Range, MatchText,
+    TextIndexParams, TokenizerType
 )
 import ollama as ollama_client
 
@@ -24,7 +25,7 @@ def get_qdrant() -> QdrantClient:
 
 
 def ensure_collection():
-    """Crea la colección si no existe."""
+    """Crea la colección si no existe e indexa campos de búsqueda."""
     client = get_qdrant()
     existing = [c.name for c in client.get_collections().collections]
     if settings.collection_name not in existing:
@@ -32,6 +33,21 @@ def ensure_collection():
             collection_name=settings.collection_name,
             vectors_config=VectorParams(size=768, distance=Distance.COSINE),
         )
+    
+    # Asegurar índice de texto en chunk_text para búsquedas de coincidencia estricta/palabras clave
+    try:
+        client.create_payload_index(
+            collection_name=settings.collection_name,
+            field_name="chunk_text",
+            field_schema=TextIndexParams(
+                type="text",
+                tokenizer=TokenizerType.MULTILINGUAL,
+                lowercase=True
+            )
+        )
+    except Exception:
+        pass
+        
     return client
 
 
@@ -70,6 +86,8 @@ def index_contract(contract_id: int, chunks: list[str], metadata: dict) -> list[
                         "expiration_date": metadata.get("expiration_date"),
                         "risk_level": metadata.get("risk_level", "unknown"),
                         "confidentiality_level": metadata.get("confidentiality_level", "internal"),
+                        "jurisdiction": metadata.get("jurisdiction"),
+                        "has_signature": metadata.get("has_signature", False),
                     }
                 )]
             )
@@ -85,23 +103,56 @@ def search_contracts(
     limit: int = 8,
     contract_type: Optional[str] = None,
     counterparty: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    jurisdiction: Optional[str] = None,
+    has_signature: Optional[bool] = None,
+    search_type: str = "semantic",
     user_permissions: Optional[list[str]] = None,
 ) -> list[dict]:
     """
-    Búsqueda semántica + filtros de metadatos.
+    Búsqueda semántica o estricta + filtros de metadatos avanzados.
     """
     client = ensure_collection()
     query_vector = embed_text(query)
 
     # Construir filtros
     must_conditions = []
-    if contract_type:
+    
+    # Filtro: Tipo de contrato
+    if contract_type and contract_type.strip():
         must_conditions.append(
-            FieldCondition(key="contract_type", match=MatchValue(value=contract_type))
+            FieldCondition(key="contract_type", match=MatchValue(value=contract_type.strip().lower()))
         )
-    if counterparty:
+        
+    # Filtro: Contraparte
+    if counterparty and counterparty.strip():
         must_conditions.append(
-            FieldCondition(key="counterparty", match=MatchValue(value=counterparty))
+            FieldCondition(key="counterparty", match=MatchValue(value=counterparty.strip()))
+        )
+        
+    # Filtro: Nivel de Riesgo
+    if risk_level and risk_level.strip() and risk_level.lower() != "todos":
+        must_conditions.append(
+            FieldCondition(key="risk_level", match=MatchValue(value=risk_level.strip().lower()))
+        )
+        
+    # Filtro: Jurisdicción
+    if jurisdiction and jurisdiction.strip():
+        # Hacer coincidencia de texto o valor para la jurisdicción
+        must_conditions.append(
+            FieldCondition(key="jurisdiction", match=MatchValue(value=jurisdiction.strip()))
+        )
+        
+    # Filtro: Estado de firma
+    if has_signature is not None:
+        must_conditions.append(
+            FieldCondition(key="has_signature", match=MatchValue(value=has_signature))
+        )
+
+    # Coincidencia de texto estricta si se requiere
+    if search_type == "strict":
+        must_conditions.append(
+            FieldCondition(key="chunk_text", match=MatchText(text=query))
         )
 
     query_filter = Filter(must=must_conditions) if must_conditions else None
@@ -121,6 +172,9 @@ def search_contracts(
             "contract_id": r.payload.get("contract_id"),
             "contract_type": r.payload.get("contract_type"),
             "counterparty": r.payload.get("counterparty"),
+            "risk_level": r.payload.get("risk_level"),
+            "jurisdiction": r.payload.get("jurisdiction"),
+            "has_signature": r.payload.get("has_signature"),
         }
         for r in results
     ]

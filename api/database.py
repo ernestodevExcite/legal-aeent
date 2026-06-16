@@ -5,7 +5,7 @@ Base de datos SQLite con SQLModel
 from sqlmodel import SQLModel, create_engine, Session
 from contextlib import contextmanager
 
-DATABASE_URL = "sqlite:///./legal_mvp.db"
+DATABASE_URL = "sqlite:///./data/legal_mvp.db"
 engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
 
 

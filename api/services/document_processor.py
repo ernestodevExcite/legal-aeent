@@ -78,15 +78,65 @@ def extract_text(filepath: str) -> str:
 
 
 def chunk_text(text: str, chunk_size: int = 800, overlap: int = 150) -> list[str]:
-    """Divide el texto en chunks con overlap para RAG."""
-    words = text.split()
+    """
+    Divide el texto respetando los límites de los párrafos.
+    Agrupa párrafos para que cada chunk tenga aproximadamente `chunk_size` palabras,
+    con un solapamiento (overlap) aproximado de `overlap` palabras.
+    """
+    # Dividir el texto en párrafos/líneas no vacías
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n|\n', text) if p.strip()]
+    
     chunks = []
-    start = 0
-    while start < len(words):
-        end = min(start + chunk_size, len(words))
-        chunk = " ".join(words[start:end])
-        chunks.append(chunk)
-        start += chunk_size - overlap
+    current_chunk = []
+    current_word_count = 0
+    
+    for para in paragraphs:
+        para_words = para.split()
+        para_word_count = len(para_words)
+        
+        # Si un solo párrafo es extremadamente largo (supera el tamaño de chunk),
+        # lo procesamos de manera regular dividiéndolo por palabras.
+        if para_word_count > chunk_size:
+            # Si ya tenemos palabras en el chunk actual, lo guardamos antes de procesar el largo
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = []
+                current_word_count = 0
+            
+            # Dividir el párrafo largo por palabras
+            start = 0
+            while start < para_word_count:
+                end = min(start + chunk_size, para_word_count)
+                chunks.append(" ".join(para_words[start:end]))
+                start += chunk_size - overlap
+            continue
+            
+        # Si agregar este párrafo supera el límite de palabras del chunk, guardamos el actual
+        if current_word_count + para_word_count > chunk_size:
+            if current_chunk:
+                chunks.append(" ".join(current_chunk))
+            
+            # Para el overlap: tomamos los últimos párrafos del chunk actual para empezar el siguiente
+            overlap_words = []
+            overlap_paras = []
+            # Retrocedemos párrafos desde el final del chunk actual hasta alcanzar el overlap aproximado
+            for prev_para in reversed(current_chunk):
+                prev_para_words = prev_para.split()
+                if len(overlap_words) + len(prev_para_words) <= overlap:
+                    overlap_paras.insert(0, prev_para)
+                    overlap_words = prev_para_words + overlap_words
+                else:
+                    break
+            
+            current_chunk = overlap_paras + [para]
+            current_word_count = sum(len(p.split()) for p in current_chunk)
+        else:
+            current_chunk.append(para)
+            current_word_count += para_word_count
+            
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+        
     return chunks
 
 

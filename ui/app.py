@@ -280,12 +280,31 @@ elif page == "💬 Chat Legal":
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    with st.expander("🔍 Filtros (opcional)"):
-        col1, col2 = st.columns(2)
-        filter_type = col1.text_input("Tipo de contrato")
-        filter_counterparty = col2.text_input("Contraparte")
+    # Controles de configuración de búsqueda
+    col_mode, col_type = st.columns(2)
+    query_mode = col_mode.selectbox(
+        "Modo de Respuesta",
+        ["Asistente Legal (LLM)", "Solo Fragmentos de Contratos"],
+        help="Asistente Legal utiliza el LLM para responder basándose en el contexto. Solo Fragmentos devuelve la información literal encontrada."
+    )
+    search_type_sel = col_type.selectbox(
+        "Método de Búsqueda",
+        ["Semántica (Embeddings)", "Estricta (Coincidencia Exacta)"],
+        help="La búsqueda semántica entiende sinónimos y conceptos. La búsqueda estricta requiere que los fragmentos contengan exactamente las palabras clave de tu pregunta."
+    )
+    search_type = "strict" if search_type_sel == "Estricta (Coincidencia Exacta)" else "semantic"
 
-    question = st.chat_input("¿Qué quieres saber sobre tus contratos?")
+    with st.expander("🔍 Filtros Avanzados de Metadatos (Opcional)"):
+        col1, col2, col3 = st.columns(3)
+        filter_type = col1.text_input("Tipo de contrato", placeholder="ej. NDA, servicios")
+        filter_counterparty = col2.text_input("Contraparte", placeholder="ej. Acme Corp")
+        filter_jurisdiction = col3.text_input("Jurisdicción (País)", placeholder="ej. México")
+        
+        col4, col5 = st.columns(2)
+        filter_risk = col4.selectbox("Nivel de Riesgo", ["Todos", "Low", "Medium", "High", "Unknown"])
+        filter_signature = col5.selectbox("Firma de Contrato", ["Todos", "Firmado", "Sin Firmar"])
+
+    question = st.chat_input("¿Qué quieres saber o buscar en tus contratos?")
 
     if question:
         st.session_state.chat_history.append({"role": "user", "content": question})
@@ -293,21 +312,49 @@ elif page == "💬 Chat Legal":
             st.markdown(question)
 
         with st.chat_message("assistant"):
-            with st.spinner("Analizando contratos..."):
+            with st.spinner("Buscando en documentos..."):
                 payload = {
-                    "question": question,
-                    "contract_type": filter_type or None,
-                    "counterparty": filter_counterparty or None,
+                    "contract_type": filter_type.strip() or None,
+                    "counterparty": filter_counterparty.strip() or None,
+                    "risk_level": None if filter_risk == "Todos" else filter_risk.lower(),
+                    "jurisdiction": filter_jurisdiction.strip() or None,
+                    "has_signature": None if filter_signature == "Todos" else (filter_signature == "Firmado"),
+                    "search_type": search_type,
                 }
-                r = api("post", "/query/ask", json=payload)
-                if r and r.status_code == 200:
-                    data = r.json()
-                    answer = data["answer"]
-                    sources = data.get("sources", [])
-                    if sources:
-                        answer += f"\n\n---\n📄 *Documentos consultados*"
+                
+                if query_mode == "Asistente Legal (LLM)":
+                    payload["question"] = question
+                    r = api("post", "/query/ask", json=payload)
+                    if r and r.status_code == 200:
+                        data = r.json()
+                        answer = data["answer"]
+                        sources = data.get("sources", [])
+                        if sources:
+                            answer += f"\n\n---\n📄 *Documentos consultados (ID):* {', '.join(map(str, sources))}"
+                    else:
+                        answer = "Error al consultar. Verifica que el sistema esté activo."
                 else:
-                    answer = "Error al consultar. Verifica que el sistema esté activo."
+                    payload["query"] = question
+                    r = api("post", "/query/search", json=payload)
+                    if r and r.status_code == 200:
+                        data = r.json()
+                        results = data.get("results", [])
+                        if not results:
+                            answer = "No se encontraron fragmentos que coincidan con la búsqueda."
+                        else:
+                            answer = f"🔍 **Se encontraron {len(results)} fragmentos relevantes:**\n\n"
+                            for idx, res in enumerate(results):
+                                score_val = res.get("score")
+                                score_str = f"| Relevancia: {score_val:.4f}" if score_val is not None else ""
+                                risk_str = res.get("risk_level", "unknown").upper()
+                                jur_str = res.get("jurisdiction") or "N/A"
+                                sig_str = "Firmado" if res.get("has_signature") else "No firmado"
+                                
+                                answer += f"**{idx+1}. Contrato #{res['contract_id']}** | Tipo: {res.get('contract_type') or 'N/A'} | Contraparte: {res.get('counterparty') or 'N/A'}\n"
+                                answer += f"> *Riesgo: {risk_str} | Jurisdicción: {jur_str} | {sig_str} {score_str}*\n\n"
+                                answer += f"{res['chunk_text']}\n\n---\n"
+                    else:
+                        answer = "Error al buscar. Verifica que el sistema esté activo."
 
             st.markdown(answer)
             st.session_state.chat_history.append({"role": "assistant", "content": answer})
