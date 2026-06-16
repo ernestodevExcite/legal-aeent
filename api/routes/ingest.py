@@ -82,7 +82,7 @@ def process_contract_background(contract_id: int, filepath: str, filename: str, 
             contract.risk_level = risk_level
             contract.summary = summary
             contract.clauses_checklist = json.dumps(clauses_result, ensure_ascii=False)
-            contract.status = "active"
+            contract.status = metadata.get("status", "active")
             db.commit()
 
             # Indexar en Qdrant

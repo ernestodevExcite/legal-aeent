@@ -246,6 +246,7 @@ def extract_metadata_with_llm(text_fragment: str) -> dict:
     5. Para montos numéricos elimina comas y símbolos de moneda.
     6. Para el tipo de contrato sé específico (ej. “arrendamiento”, “compraventa”, “NDA”, “prestación de servicios”, “suministro”, “colaboración”, “arrendamiento”, “renta”, etc.).
     7. No incluyas comentarios o explicaciones, solo el JSON.
+    8. Si el contrato está vencido, indica "expired" en el campo "status", si está vigente, indica "active". Si no se puede determinar, usa expired.
 
     Texto del contrato:
     {text_fragment}
@@ -258,7 +259,8 @@ def extract_metadata_with_llm(text_fragment: str) -> dict:
         "expiration_date": "fecha en formato YYYY-MM-DD",
         "amount": 0.0,
         "currency": "ISO code",
-        "jurisdiction": "país"
+        "jurisdiction": "país",
+        "status": "active, expired",
     }}
     """
     
