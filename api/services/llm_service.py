@@ -96,9 +96,19 @@ Sé conciso pero completo. Responde en español.
 def analyze_clauses(text: str) -> dict:
     """Analiza cláusulas críticas y retorna checklist."""
     prompt = """
-Analiza el siguiente contrato y verifica la presencia y adecuación de estas cláusulas.
-Para cada una, responde con: "presente", "incompleta", "ausente", o "riesgo".
-También agrega una observación breve.
+Actúa como un Abogado Corporativo Senior experto en auditoría y análisis de riesgos contractuales. Tu objetivo es analizar el contrato proporcionado con el máximo nivel de detalle.
+
+INSTRUCCIONES:
+1. Identifica el tipo de contrato (ej. Prestación de Servicios, Arrendamiento, Laboral, NDA, SaaS, etc.).
+2. Analiza las 10 "Cláusulas Generales" listadas abajo.
+3. Identifica y analiza al menos 3 a 5 "Cláusulas Específicas" críticas que DEBERÍAN estar presentes según el tipo de contrato identificado (ej. "Acuerdos de Nivel de Servicio (SLA)" para un SaaS, o "No Competencia" para uno Laboral).
+4. Para cada cláusula evaluada, asigna uno de los siguientes estados, dependiendo del tipo de contrato:
+   - "presente": La cláusula está bien redactada, es clara y protege adecuadamente.
+   - "incompleta": Existe, pero le falta información clave, plazos o métricas.
+   - "ausente": No se menciona en absoluto en el documento.
+   - "riesgo": Está redactada de forma ambigua, abusiva, o expone gravemente a una de las partes.
+   - "no aplica": Por la naturaleza del contrato, no es necesaria.
+5.Agrega otras clausulas que creas necesarias o faltantes que encontraste en el contrato
 
 Cláusulas a revisar:
 1. Confidencialidad
@@ -115,10 +125,17 @@ Cláusulas a revisar:
 Responde en formato JSON estricto:
 {
   "clauses": [
-    {"name": "Confidencialidad", "status": "presente", "observation": "..."},
+    {
+      "name": "Nombre de la cláusula",
+      "type": "General | Específica",
+      "location": "Ubicación en el texto (ej. Cláusula 5.2) o null si está ausente",
+      "status": "presente | incompleta | ausente | riesgo | no aplica",
+      "observation": "Explicación breve, detallando el riesgo o lo que falta si aplica."
+    }
     ...
   ],
   "overall_risk": "low|medium|high",
+  "missing_critical_clauses": ["Lista de strings con nombres de cláusulas vitales que faltan"],
   "summary_observations": "..."
 }
 """.strip()

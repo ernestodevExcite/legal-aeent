@@ -108,22 +108,22 @@ def check_expiring_contracts(db: Session):
             contract.status = "expired"
 
     # Sin firma detectada
-    for contract in contracts:
-        if not contract.has_signature:
-            existing = db.exec(
-                select(Alert).where(
-                    Alert.contract_id == contract.id,
-                    Alert.alert_type == "no_signature",
-                )
-            ).first()
-            if not existing:
-                alert = Alert(
-                    contract_id=contract.id,
-                    alert_type="no_signature",
-                    message=f"Contrato '{contract.filename}' no tiene firma detectada.",
-                )
-                db.add(alert)
-                alerts_created.append(alert)
+    # for contract in contracts:
+    #     if not contract.has_signature:
+    #         existing = db.exec(
+    #             select(Alert).where(
+    #                 Alert.contract_id == contract.id,
+    #                 Alert.alert_type == "no_signature",
+    #             )
+    #         ).first()
+    #         if not existing:
+    #             alert = Alert(
+    #                 contract_id=contract.id,
+    #                 alert_type="no_signature",
+    #                 message=f"Contrato '{contract.filename}' no tiene firma detectada.",
+    #             )
+    #             db.add(alert)
+    #             alerts_created.append(alert)
 
     db.commit()
     return alerts_created

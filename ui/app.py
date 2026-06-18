@@ -208,7 +208,8 @@ if page == "📊 Dashboard":
                                         "presente": "✅ Presente",
                                         "incompleta": "⚠️ Incompleta",
                                         "ausente": "❌ Ausente",
-                                        "riesgo": "🚨 Riesgo"
+                                        "riesgo": "🚨 Riesgo",
+                                        "no aplica": "🚫 No aplica"
                                     }.get(cl_status, f"⚪ {cl_status}")
 
                                     with st.expander(f"{status_emoji} - **{cl_name}**"):
@@ -217,6 +218,9 @@ if page == "📊 Dashboard":
                                 if "summary_observations" in clauses:
                                     st.markdown("**Observaciones Generales de Cláusulas:**")
                                     st.write(clauses["summary_observations"])
+                                if  "missing_critical_clauses" in clauses:
+                                    st.markdown("**Clausas criticas faltantes:**")
+                                    st.write(", ".join(clauses["missing_critical_clauses"]))
                             else:
                                 st.info("No se encontraron análisis de cláusulas para este contrato.")
 

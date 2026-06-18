@@ -23,6 +23,7 @@ class Contract(SQLModel, table=True):
     original_path: str
     contract_type: Optional[str] = None       # suministro, servicios, nda, compra, colaboración
     counterparty: Optional[str] = None        # nombre contraparte
+    party: Optional[str] = None
     jurisdiction: Optional[str] = None
     signature_date: Optional[date] = None
     expiration_date: Optional[date] = None

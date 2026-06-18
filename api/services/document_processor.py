@@ -242,19 +242,20 @@ def extract_metadata_with_llm(text_fragment: str) -> dict:
     1. Analiza el texto y extrae solo la información que puedas validar con certeza.
     2. Si un campo no está presente en el texto, déjalo como null.
     3. No inventes datos. Si no encuentras un valor claro, usa null.
-    4. Para fechas usa el formato YYYY-MM-DD, si no hay fecha, déjalo como null. puede haber periodos como de (1 de enero) a (31 de diciembre de 2022).
-    5. Para montos numéricos elimina comas y símbolos de moneda.
-    6. Para el tipo de contrato sé específico (ej. “arrendamiento”, “compraventa”, “NDA”, “prestación de servicios”, “suministro”, “colaboración”, “arrendamiento”, “renta”, etc.).
-    7. No incluyas comentarios o explicaciones, solo el JSON.
-    8. Si el contrato está vencido, indica "expired" en el campo "status", si está vigente, indica "active". Si no se puede determinar, usa expired.
-
+    4. Para identificar a las partes, usa los campos "party" y "counterparty". Asigna a la primera parte mencionada (o el emisor del contrato) en "party", y a la otra entidad en "counterparty". Para ambos, incluye el nombre legal y su rol entre paréntesis, por ejemplo: "Empresa X (Arrendador)".
+    5. Para fechas usa el formato YYYY-MM-DD. Si no hay fecha, déjalo como null. Puede haber periodos como de (1 de enero) a (31 de diciembre de 2022).
+    6. Para montos numéricos elimina comas y símbolos de moneda.
+    7. Para el tipo de contrato sé específico (ej. "arrendamiento", "compraventa", "NDA", "prestación de servicios", "suministro", "colaboración").
+    8. No incluyas comentarios, explicaciones ni formato markdown fuera del bloque JSON.
+    9. Si el contrato está vencido, indica "expired" en el campo "status". Si está vigente, indica "active". Si no se puede determinar, usa "expired".
     Texto del contrato:
     {text_fragment}
 
     Devuelve únicamente un objeto JSON válido con estas claves:
     {{
         "contract_type": "tipo de contrato",
-        "counterparty": "nombre de la contraparte",
+        "party":"Nombre de la primera parte (Rol legal)"
+        "counterparty": "Nombre de la segunda parte (Rol legal) contraparte",
         "signature_date": "fecha en formato YYYY-MM-DD",
         "expiration_date": "fecha en formato YYYY-MM-DD",
         "amount": 0.0,
